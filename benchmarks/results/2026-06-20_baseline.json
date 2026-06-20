@@ -1,0 +1,26 @@
+{
+  "meta": {
+    "date": "2026-06-20",
+    "spec": "MinGW64 on Windows 11, 16 threads",
+    "clock_resolution": "~1 μs",
+    "note": "p50=0 means sub-μs (below clock resolution)"
+  },
+  "ring_buffer": {
+    "description": "SPSC lock-free ring buffer, capacity=4096",
+    "throughput_2thread": "506.5 M ops/sec",
+    "latency_p50": "<1 μs",
+    "latency_p99": "1000 ns",
+    "latency_p99_9": "1000 ns"
+  },
+  "matching_engine": {
+    "throughput": "5.7 M orders/sec",
+    "insert_latency_p50": "<1 μs",
+    "insert_latency_p99": "1000 ns",
+    "insert_latency_p99_9": "64000 ns",
+    "match_latency_p50": "<1 μs",
+    "match_latency_p99": "1000 ns",
+    "match_latency_p99_9": "1000 ns",
+    "imbalance_latency_p50": "<1 μs",
+    "imbalance_latency_p99": "1000 ns"
+  }
+}
