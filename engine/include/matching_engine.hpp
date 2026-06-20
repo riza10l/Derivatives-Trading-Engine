@@ -11,7 +11,10 @@ class MatchingEngine {
 public:
     MatchingEngine() : next_order_id_(1), total_trades_(0) {}
 
-    std::vector<Trade> submitOrder(Side side, OrderType type, Price price, Quantity qty);
+    // Submit an order. Returns SubmitResult with status + any trades.
+    // visible_qty: for Iceberg orders, the displayed portion. 0 = full visibility.
+    SubmitResult submitOrder(Side side, OrderType type, Price price, Quantity qty,
+                             Quantity visible_qty = 0);
     bool cancelOrder(OrderId id);
     const OrderBook& book() const { return book_; }
 

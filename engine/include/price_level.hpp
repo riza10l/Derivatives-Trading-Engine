@@ -17,13 +17,30 @@ struct alignas(64) PriceLevel {
     explicit PriceLevel(Price p) : price(p), total_quantity(0), order_count(0) {}
 
     void addOrder(const Order& order) {
+        // For iceberg orders, only the visible portion is "on the book"
+        Quantity display = order.displayQty();
+        Order book_order = order;
+        book_order.remaining_qty = display;
+        orders.push_back(book_order);
+        total_quantity += display;
+        ++order_count;
+    }
+
+    // Add an iceberg order preserving its full remaining_qty in the list
+    // (used internally for refresh — the order tracks its own hidden state)
+    void addOrderRaw(const Order& order) {
         orders.push_back(order);
         total_quantity += order.remaining_qty;
         ++order_count;
     }
 
     // Fill by taker quantity, return list of (order_id, filled_qty) pairs
-    std::list<std::pair<OrderId, Quantity>> fillWithTrades(Quantity qty) {
+    // Also populates iceberg_refreshes: orders whose visible portion was
+    // fully consumed but still have hidden quantity remaining.
+    std::list<std::pair<OrderId, Quantity>> fillWithTrades(
+        Quantity qty,
+        std::vector<Order>* iceberg_refreshes = nullptr)
+    {
         std::list<std::pair<OrderId, Quantity>> trades;
         Quantity remaining = qty;
 
@@ -36,6 +53,12 @@ struct alignas(64) PriceLevel {
             remaining -= can_fill;
 
             if (order.isFilled()) {
+                // Check if this is an iceberg with hidden quantity left
+                if (order.isIceberg() && iceberg_refreshes) {
+                    // The order in the book only had visible portion;
+                    // caller must check the original order's total remaining
+                    iceberg_refreshes->push_back(order);
+                }
                 orders.pop_front();
                 --order_count;
             }
@@ -56,6 +79,9 @@ struct alignas(64) PriceLevel {
 
     bool empty() const { return orders.empty(); }
     Quantity frontQty() const { return orders.empty() ? 0 : orders.front().remaining_qty; }
+
+    // Access to orders list for iceberg refresh and inspection
+    const std::list<Order>& getOrders() const { return orders; }
 
 private:
     std::list<Order> orders;      // FIFO queue per price level

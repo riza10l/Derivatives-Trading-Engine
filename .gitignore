@@ -1,0 +1,22 @@
+# Build artifacts
+build/
+*.exe
+*.o
+*.obj
+*.lib
+*.a
+*.dll
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+*.csv
+*.log

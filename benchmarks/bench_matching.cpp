@@ -151,8 +151,8 @@ static void bench_full_match_latency() {
         MatchingEngine engine;
         engine.submitOrder(Side::Bid, OrderType::Limit, 100, 10);
         auto start = Clock::now();
-        auto trades = engine.submitOrder(Side::Ask, OrderType::Limit, 100, 10);
-        DoNotOptimize(trades.size());
+        auto result = engine.submitOrder(Side::Ask, OrderType::Limit, 100, 10);
+        DoNotOptimize(result.trades.size());
         samples.push_back(std::chrono::duration_cast<std::chrono::nanoseconds>(
             Clock::now() - start).count());
     }
