@@ -14,7 +14,7 @@ add_library(engine_lib STATIC
     engine/src/matching_engine.cpp
     engine/src/perpetual.cpp
 )
-target_include_directories(engine_lib PUBLIC engine/include/ bots/include/)
+target_include_directories(engine_lib PUBLIC engine/include/ bots/include/ network/include/)
 
 # ==========================================================================
 # Network static library (links ws2_32 for WinSock2)
@@ -60,6 +60,10 @@ target_link_libraries(test_perpetual PRIVATE engine_lib)
 # ==========================================================================
 add_executable(test_simulation bots/tests/test_simulation.cpp bots/src/simulator.cpp)
 target_link_libraries(test_simulation PRIVATE engine_lib)
+
+add_executable(test_vpin bots/tests/test_vpin.cpp bots/src/simulator.cpp)
+target_link_libraries(test_vpin PRIVATE engine_lib)
+target_include_directories(test_vpin PRIVATE bots/include/)
 
 # ==========================================================================
 # Tests — Network

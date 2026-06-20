@@ -30,6 +30,7 @@ SubmitResult MatchingEngine::submitOrder(Side side, OrderType type, Price price,
         Order order{id, side, OrderType::Limit, price, qty, timestamp};
         std::vector<Trade> trades = book_.addOrder(order);
         total_trades_ += trades.size();
+        recordTrades(trades);
 
         // FOK should be fully filled if availableQty was correct
         SubmitStatus status = order.isFilled() ? SubmitStatus::Filled : SubmitStatus::Cancelled;
@@ -47,6 +48,7 @@ SubmitResult MatchingEngine::submitOrder(Side side, OrderType type, Price price,
         }
 
         total_trades_ += trades.size();
+        recordTrades(trades);
 
         if (trades.empty()) {
             return {id, SubmitStatus::Cancelled, {}};
@@ -81,6 +83,7 @@ SubmitResult MatchingEngine::submitOrder(Side side, OrderType type, Price price,
         // Match normally — addOrder handles visible portion via displayQty()
         std::vector<Trade> trades = book_.addOrder(order);
         total_trades_ += trades.size();
+        recordTrades(trades);
 
         Quantity filled = 0;
         for (const auto& t : trades) filled += t.qty;
@@ -101,6 +104,7 @@ SubmitResult MatchingEngine::submitOrder(Side side, OrderType type, Price price,
     Order order{id, side, type, price, qty, timestamp};
     std::vector<Trade> trades = book_.addOrder(order);
     total_trades_ += trades.size();
+    recordTrades(trades);
 
     SubmitStatus status;
     if (order.isFilled()) {
@@ -111,6 +115,15 @@ SubmitResult MatchingEngine::submitOrder(Side side, OrderType type, Price price,
         status = SubmitStatus::Accepted;  // pure resting
     }
     return {id, status, std::move(trades)};
+}
+
+void MatchingEngine::recordTrades(const std::vector<Trade>& trades) {
+    for (const auto& t : trades) {
+        if (recent_trades_.size() >= MAX_RECENT_TRADES) {
+            recent_trades_.pop_front();
+        }
+        recent_trades_.push_back(t);
+    }
 }
 
 bool MatchingEngine::cancelOrder(OrderId id) {

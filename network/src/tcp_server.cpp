@@ -106,6 +106,7 @@ void TcpServer::acceptLoop() {
         }
 
         // 100ms timeout so we can check running_ flag
+        // pake 100 ms biar gak kelamaan
         struct timeval tv;
         tv.tv_sec = 0;
         tv.tv_usec = 100000;  // 100ms

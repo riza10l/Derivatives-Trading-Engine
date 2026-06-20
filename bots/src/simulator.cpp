@@ -3,6 +3,7 @@
 #include <ctime>
 #include <random>
 #include <cmath>
+#include <memory>
 
 static std::mt19937& globalRng() {
     static std::mt19937 rng(static_cast<unsigned>(std::time(nullptr)));
@@ -57,6 +58,44 @@ BotFunc makeMarketMaker() {
     };
 }
 
+BotFunc makeAdaptiveMarketMaker(std::shared_ptr<VPINCalculator> vpin) {
+    return [vpin](MatchingEngine& engine, uint64_t) {
+        auto& g = globalRng();
+        auto best_bid = engine.book().bestBid();
+        auto best_ask = engine.book().bestAsk();
+        if (!best_bid || !best_ask) return;
+
+        Price mid = (*best_bid + *best_ask) / 2;
+        Price base_spread = *best_ask - *best_bid;
+        if (base_spread < 2) base_spread = 2;
+
+        // Adaptive: widen spread based on VPIN toxicity
+        double tox = vpin ? vpin->toxicity() : 0.0;
+        // tox=0 → base spread; tox=1 → 4× wider spread
+        Price spread = base_spread + static_cast<Price>(base_spread * tox * 3);
+        if (spread < base_spread) spread = base_spread;
+        if (spread > base_spread * 4) spread = base_spread * 4;
+
+        std::uniform_int_distribution<Price> jitter(-1, 1);
+        std::uniform_int_distribution<Quantity> qty(5, 15);
+
+        Price bid_px = mid - spread / 2 + jitter(g);
+        Price ask_px = mid + spread / 2 + jitter(g);
+
+        if (bid_px >= ask_px) {
+            bid_px = mid - spread / 2;
+            ask_px = mid + spread / 2;
+        }
+
+        engine.submitOrder(Side::Bid, OrderType::Limit, bid_px, qty(g));
+        engine.submitOrder(Side::Ask, OrderType::Limit, ask_px, qty(g));
+    };
+}
+
+std::shared_ptr<VPINCalculator> makeSharedVPIN(Quantity bucket_vol, size_t window) {
+    return std::make_shared<VPINCalculator>(bucket_vol, window);
+}
+
 // =========================================================================
 // Simulator
 // =========================================================================
@@ -64,6 +103,10 @@ BotFunc makeMarketMaker() {
 Simulator::Simulator(PerpetualConfig perp_cfg)
     : perpetual_(&engine_.book(), perp_cfg)
     , tick_(0) {}
+
+void Simulator::enableVPIN(Quantity bucket_vol, size_t window) {
+    vpin_ = std::make_shared<VPINCalculator>(bucket_vol, window);
+}
 
 void Simulator::addBot(const std::string& name, BotFunc fn) {
     bots_.emplace_back(name, std::move(fn));
@@ -77,6 +120,19 @@ void Simulator::run(uint64_t ticks) {
         }
         perpetual_.tick();
 
+        // Feed trades to VPIN calculator
+        if (vpin_) {
+            Price mid = 0;
+            auto bid = engine_.book().bestBid();
+            auto ask = engine_.book().bestAsk();
+            if (bid && ask) mid = (*bid + *ask) / 2;
+
+            for (const auto& trade : engine_.recentTrades()) {
+                vpin_->feedTrade(trade, mid);
+            }
+            engine_.clearRecentTrades();
+        }
+
         // Snapshot book state at end of tick
         TickSnapshot snap;
         snap.tick         = tick_;
@@ -87,11 +143,14 @@ void Simulator::run(uint64_t ticks) {
         snap.mark_price   = perpetual_.markPrice();
         snap.imbalance    = engine_.book().imbalance();
         snap.total_trades = engine_.totalTrades();
+        snap.vpin         = vpin_ ? vpin_->currentVPIN() : 0.0;
+        snap.toxicity     = vpin_ ? vpin_->toxicity() : 0.0;
         snapshots_.push_back(snap);
     }
-    std::printf("[sim] %llu ticks, %zu bots, %llu trades\n",
+    std::printf("[sim] %llu ticks, %zu bots, %llu trades, VPIN=%.4f\n",
                 (unsigned long long)tick_, bots_.size(),
-                (unsigned long long)engine_.totalTrades());
+                (unsigned long long)engine_.totalTrades(),
+                vpin_ ? vpin_->currentVPIN() : 0.0);
 }
 
 void Simulator::saveLog(const std::string& path) const {
@@ -104,10 +163,10 @@ void Simulator::saveLog(const std::string& path) const {
                  (unsigned long long)engine_.totalTrades());
 
     std::fprintf(f, "tick,bid,ask,spread,funding_rate,mark_price,"
-                    "imbalance,total_trades\n");
+                    "imbalance,total_trades,vpin,toxicity\n");
 
     for (const auto& snap : snapshots_) {
-        std::fprintf(f, "%llu,%lld,%lld,%lld,%.6f,%lld,%.4f,%llu\n",
+        std::fprintf(f, "%llu,%lld,%lld,%lld,%.6f,%lld,%.4f,%llu,%.6f,%.6f\n",
             (unsigned long long)snap.tick,
             (long long)snap.best_bid,
             (long long)snap.best_ask,
@@ -115,7 +174,9 @@ void Simulator::saveLog(const std::string& path) const {
             snap.funding_rate,
             (long long)snap.mark_price,
             snap.imbalance,
-            (unsigned long long)snap.total_trades);
+            (unsigned long long)snap.total_trades,
+            snap.vpin,
+            snap.toxicity);
     }
     std::fclose(f);
 }

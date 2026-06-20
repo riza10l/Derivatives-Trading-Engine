@@ -17,6 +17,14 @@ build/
 Thumbs.db
 .DS_Store
 
+# AgentDB / runtime state
+agentdb.rvf
+agentdb.rvf.lock
+currentVPIN()
+
 # Logs
 *.csv
 *.log
+
+# Keep research/data directory structure
+!research/data/.gitkeep
