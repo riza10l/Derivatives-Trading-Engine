@@ -80,19 +80,26 @@ trading-engine/
 ### Build
 ```bash
 cd trading-engine
-cmake -B build -S .
+cmake -B build -S . -G "MinGW Makefiles"
 cmake --build build
 ```
 
+> **Windows note**: Butuh MinGW GCC 15.2.0+ di PATH (`C:\MinGW\bin`).  
+> CMake bawaan MinGW (`C:\mingw64\bin\cmake`) corrupt — pake CMake portable  
+> atau built-in dari CLion. Detail lengkap di `USAGE.md`.
+
 ### Test
 ```bash
-build/test_matching.exe   # 6 tests
+build/test_matching.exe    # 6 tests
 build/test_ring_buffer.exe # 6 tests
 build/test_perpetual.exe   # 11 tests
 build/test_simulation.exe  # 6 tests
 build/test_vpin.exe        # 6 tests
 build/test_protocol.exe    # 9 tests
 build/test_tcp.exe         # 3 tests
+
+# Semua test sekaligus
+for f in build/test_*.exe; do echo "=== \$f ===" && "\$f"; done
 ```
 
 ### RL Research
